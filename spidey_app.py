@@ -21,7 +21,7 @@ def run_query(sql, params=()):
 
 # ------(Spiderman Function (Info))
 SQL = """
-SELECT name AS Full_Name, s_identity AS Secret_Identity
+SELECT UPPER(name) AS Full_Name, UPPER(s_identity) AS Secret_Identity
 FROM Spiderman
 WHERE name LIKE %s OR s_identity LIKE %s;
 ;
