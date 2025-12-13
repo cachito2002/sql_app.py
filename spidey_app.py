@@ -53,7 +53,7 @@ INNER JOIN EpicBattles epic
 ON epic.spiderman_id = s.spiderman_id
 INNER JOIN Villains v
 ON epic.villain_id = v.villain_id
-WHERE v.name LIKE %s OR s.name LIKE %s OR epic.outcome LIKE %s
+WHERE v.name LIKE %s OR s.name LIKE %s
 ORDER BY epic.date;
 """
 
@@ -62,7 +62,7 @@ if st.button("Battle Info"):
     try:
         search_term = f"%{name.strip()}%"
 
-        rows = run_query(SQL, (search_term,search_term,search_term))
+        rows = run_query(SQL, (search_term,search_term))
 
         st.dataframe(rows if rows else [{"info": "No Battle Info found"}])
     except Exception as e:
@@ -108,8 +108,76 @@ if st.button("Search Battle Outcome", key="btn_cte_search"):
 # ------End of Query
 
 # ------ 4.(Suit Case/When Query)
+st.subheader("Add a New Suit")
+new_suit_name = st.text_input("1. New Suit Name", value="", key="insert_suit_name")
+new_suit_abilities = st.text_input("2. Abilities Granted", value="", key="insert_suit_abilities")
+new_suit_power = st.number_input("3. Power Level (1-5)", min_value=1, max_value=5, value=1, key="insert_suit_power")
+new_suit_price = st.number_input("4. Price", min_value=0.00, value=50.00, step=1.0, key="insert_suit_price")
+
+if st.button("Insert New Suit", key="btn_insert_suit"):
+
+    SQL_INSERT_SUIT = "INSERT INTO Suits (name, abilities_granted, power_level, price) VALUES (%s, %s, %s, %s)"
+    
+    name = new_suit_name.strip()
+    abilities = new_suit_abilities.strip()
+    power = int(new_suit_power)
+    price = new_suit_price
+    
+    if not name or not abilities:
+        st.warning("Please enter a Suit Name and Abilities.")
+    else:
+        try:
+            exists = run_query("SELECT 1 FROM Suits WHERE LOWER(name) = LOWER(%s) LIMIT 1", (name,))
+            if exists:
+                st.info(f"The suit '{name}' already exists.")
+            else:
+                conn = mysql.connector.connect(host=HOST, port=PORT, user=USER, password=PWD, database=DB)
+                cur = conn.cursor()
+                cur.execute(SQL_INSERT_SUIT, (name, abilities, power, price))
+                conn.commit()
+                cur.close(); conn.close()
+
+                st.success(f"Inserted suit: {name}")
+        except Exception as e:
+            st.error(f"Insert failed: {e}")
+st.subheader("Remove a Suit by ID")
+st.caption("Warning: This action is permanent.")
+
+# Get the unique ID of the suit to delete
+suit_id_to_delete = st.number_input(
+    "Enter Suit ID to Delete (e.g., 15)", 
+    min_value=1, 
+    key="input_delete_suit_id"
+)
+
+if st.button("Permanently Delete Suit", key="btn_delete_suit"):
+    try:
+        exists = run_query("SELECT 1 FROM Suits WHERE suit_id = %s", (suit_id_to_delete,))
+
+        if not exists:
+            st.warning(f"Suit ID {suit_id_to_delete} not found.")
+        else:
+            
+            conn = mysql.connector.connect(host=HOST, port=PORT, user=USER, password=PWD, database=DB)
+            cur = conn.cursor()
+            
+            SQL_DELETE_SUIT = "DELETE FROM Suits WHERE suit_id = %s"
+            cur.execute(SQL_DELETE_SUIT, (suit_id_to_delete,))
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            st.success(f"Suit ID {suit_id_to_delete} has been permanently removed.")
+            st.warning("Click 'Refresh Suit List' to see the change.")
+            
+            
+    except Exception as e:
+        st.error(f"Deletion failed: {e}")
+
+st.markdown("---")
 SQL = """
-SELECT 
+SELECT
+    su.suit_id,
 	su.name AS Suit, 
     su.abilities_granted AS Abilities,
     su.price AS Suit_Value,
@@ -121,7 +189,7 @@ SELECT
 	END AS Suits_Power
 FROM Suits su
 WHERE su.name LIKE %s
-ORDER BY su.power_level DESC;
+ORDER BY su.suit_id ASC;
 """
 name = st.text_input("Spiderman Suits (e.g., Superior Suit)", value="")
 if st.button("Search Battle Suits", key="btn_suit_search"):
@@ -163,13 +231,15 @@ if st.button("Multiverse Option", key="btn_universe_search"):
         else:
             selected_sql = SQL_ALL_UNIVERSES
 
-        search_term = f"%{name.strip()}%"
+#        search_term = f"%{name.strip()}%"
 
         rows = run_query(selected_sql, ())
 
         st.dataframe(rows if rows else [{"Universe": "Universe is not found"}])
     except Exception as e:
         st.error(str(e))
+
+
 # ------End of Query
 
 
@@ -204,7 +274,7 @@ if st.button("Team Option", key="btn_team_search"):
             sql_selected = SQL_SPIDEY_TEAM
 
 
-        search_term = f"%{name.strip()}%"
+#        search_term = f"%{name.strip()}%"
 
         rows = run_query(sql_selected, ())
 
@@ -270,9 +340,31 @@ if st.button("Origin"):
         st.dataframe(rows if rows else [{"Creature/Event": "At his moment that is not available"}])
     except Exception as e:
         st.error(str(e))
-
-
 # ------End of Query
+
+
+# --- Spiderman Abilities (Normal Query)
+SQL_SPIDERMAN_ABILITIES = """
+SELECT s.s_identity AS Spiderman, a.name AS Ability, a.strength AS Power_Level, a.details AS Info_of_Power
+FROM  CharacterAbilities ca
+INNER JOIN Spiderman s 
+ON s.spiderman_id = ca.spiderman_id
+INNER JOIN Abilities a
+ON a.ability_id = ca.ability_id
+WHERE s.name LIKE %s OR a.name LIKE %s OR a.strength LIKE %s
+ORDER BY a.name ASC;
+"""
+
+name = st.text_input("Abilities to Spiderman (e.g., powerlevel, spiderman)", value="")
+if st.button("Spiderman and their abilities"):
+    try:
+        search_term = f"%{name.strip()}%"
+
+        rows = run_query(SQL_SPIDERMAN_ABILITIES, (search_term,search_term,search_term))
+
+        st.dataframe(rows if rows else [{"Creature/Event": "At his moment that is not available"}])
+    except Exception as e:
+        st.error(str(e))
 
 
 
